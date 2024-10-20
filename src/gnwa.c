@@ -1,0 +1,381 @@
+/*
+
+    gnwa.c
+    This file contains the implementation of the Graph-Needleman-Wunsch-Algorithm.
+    Author: Frederic zur Bonsen <fzurbonsen@student.ethz.ch>
+
+*/
+
+#include "gnwa.h"
+
+
+// Function to transform char seqeunce into num sequence
+int8_t* gnwa_create_num(const char* seq,
+                        const int32_t len,
+                        const int8_t* nt_table) {
+
+    int8_t* num = (int8_t*)malloc(len);
+    for (int i = 0; i < len; ++i) num[i] = nt_table[(int)seq[i]];
+    return num;
+}
+
+
+// Function to create a new node struct
+gnwa_node_t* gnwa_node_create(const uint64_t id,
+                                const char* seq,
+                                int8_t* nt_table,
+                                int8_t* score_matrix) {
+
+    gnwa_node_t* node = calloc(1, sizeof(gnwa_node_t));
+
+    // Prepare memory for the different fields
+    node->seq = (char*)malloc(strlen(seq) + 1);
+    node->num = (int8_t*)malloc(strlen(seq));
+
+    // Fill the fields with the respective values
+    node->id = id;
+    node->len = strlen(seq);
+    node->count_prev = 0;
+    node->count_next = 0;
+    strcpy(node->seq, seq); // copy string
+    node->num = gnwa_create_num(seq, strlen(seq), nt_table); // transform char to int for sequence
+
+    return node;
+}
+
+
+// Function to destroy a node
+void gnwa_node_destroy(gnwa_node_t* node) {
+    free(node->seq);
+    free(node->num);
+    free(node->prev);
+    free(node->next);
+    free(node);
+}
+
+
+// Funtion to add a previous node
+void gnwa_node_add_prev(gnwa_node_t* node, gnwa_node_t* prev) {
+    node->count_prev++;
+    node->prev = (gnwa_node_t**)realloc(node->prev, node->count_prev * sizeof(gnwa_node_t*));
+    node->prev[node->count_prev - 1] = prev;
+}
+
+
+// Function to add a next node
+void gnwa_node_add_next(gnwa_node_t* node, gnwa_node_t* next) {
+    node->count_next++;
+    node->next = (gnwa_node_t**)realloc(node->next, node->count_next * sizeof(gnwa_node_t*));
+    node->next[node->count_next - 1] = next;
+}
+
+
+// Function to delete a previous node
+void gnwa_node_del_prev(gnwa_node_t* node, gnwa_node_t* prev) {
+    gnwa_node_t** new_prev = (gnwa_node_t**)malloc(node->count_prev * sizeof(gnwa_node_t*));
+    gnwa_node_t** iter = node->prev;
+
+    for (int i = 0; i < node->count_prev; ++i, ++iter) {
+        if (*iter != prev) {
+            new_prev[i] = *iter;
+        }
+    }
+    free(node->prev);
+    node->prev = new_prev;
+    node->count_prev--;
+}
+
+
+// Function to delete a next node
+void gnwa_node_del_next(gnwa_node_t* node, gnwa_node_t* next) {
+    gnwa_node_t** new_next = (gnwa_node_t**)malloc(node->count_next * sizeof(gnwa_node_t*));
+    gnwa_node_t** iter = node->next;
+
+    for (int i = 0; i < node->count_next; ++i, ++iter) {
+        if (*iter != next) {
+            new_next[i] = *iter;
+        }
+    }
+    free(node->next);
+    node->next = new_next;
+    node->count_next--;
+}
+
+
+// Function to add an edge between two nodes
+void gnwa_node_add_edge(gnwa_node_t* start, gnwa_node_t* end) {
+    // Check if the edge already exists
+    for (int i = 0; i < start->count_next; ++i) {
+        if (start->next[i] == end) return;
+    }
+    gnwa_node_add_next(start, end);
+    gnwa_node_add_prev(end, start);
+}
+
+
+// Function to delete an edge between two nodes
+void gnwa_node_del_edge(gnwa_node_t* start, gnwa_node_t* end) {
+    gnwa_node_del_next(start, end);
+    gnwa_node_del_prev(end, start);
+}
+
+
+// Function to create a path
+gnwa_path_t* gnwa_path_create(gnwa_node_t** nodes, uint32_t len) {
+    // Allocate memory
+    gnwa_path_t* path = (gnwa_path_t*)malloc(sizeof(gnwa_path_t));
+    path->nodes = (gnwa_node_t**)malloc(len * sizeof(gnwa_node_t*));
+    // Fill the fields
+    path->len = len;
+    for (int i = 0; i < len; ++i) {
+        path->nodes[i] = nodes[i];
+    }
+    return path;
+}
+
+
+// Function to destroy a path
+void gnwa_path_destroy(gnwa_path_t* path) {
+    free(path->nodes);
+    free(path);
+}
+
+
+// Function to print a path
+void gnwa_path_print(FILE* file, gnwa_path_t* path) {
+    for (int i = 0; i < path->len; ++i) {
+        fprintf(file, "[%li]->", path->nodes[i]->id);
+    }
+    fprintf(file, "\n");
+}
+
+
+// Function to create a graph
+gnwa_graph_t* gnwa_graph_create(uint32_t size) {
+    gnwa_graph_t* graph = calloc(1, sizeof(gnwa_graph_t));
+    graph->nodes = malloc(size * sizeof(gnwa_node_t*));
+    if (!graph || !graph->nodes) {
+        fprintf(stderr,  "Error:[gnwa] could not allocate memory for the graph of %u nodes!\n", size);
+        exit(1);
+    }
+    return graph;
+}
+
+
+// Function to find the max node of a graph
+gnwa_node_t* gnwa_graph_find_max_node(gnwa_node_t** nodes, int32_t n_nodes) {
+    // Iterate over all nodes to find the top node
+    for (int i = 0; i < n_nodes; ++i) {
+        if (nodes[i]->count_prev == 0) {
+            return nodes[i];
+        }
+    }
+
+    fprintf(stderr, "Error:[gnwa] graph has no clear top node!\n");
+    exit(1);
+}
+
+
+// Function to destroy a graph
+void gnwa_graph_destroy(gnwa_graph_t* graph) {
+    for (int i = 0; i < graph->size; ++i) {
+        gnwa_node_destroy(graph->nodes[i]);
+    }
+    graph->max_node = NULL;
+    free(graph->nodes);
+    graph->nodes = NULL;
+    free(graph);
+}
+
+
+// Function to add a node to a graph
+uint32_t gnwa_graph_add_node(gnwa_graph_t* graph, gnwa_node_t* node) {
+    if (graph->size % 1024 == 0) {
+        size_t old_size = graph->size * sizeof(void*);
+        size_t increment = 1024 * sizeof(void*);
+        if (!(graph->nodes = realloc((void*)graph->nodes, old_size + increment))) {
+            fprintf(stderr, "Error:[gnwa] could not allocate memory for graph\n");
+            exit(1);
+        }
+    }
+    graph->size++;
+    graph->nodes[graph->size - 1] = node;
+    return graph->size;
+}
+
+
+// Function to recursively traverse the graph and count the number of paths
+uint32_t __gnwa_graph_get_path_count(gnwa_node_t* node) {
+    // Check if we have reached the end of the path
+    if (node->count_next == 0) {
+        return 1;
+    }
+
+    uint32_t count = 0;
+
+    // Otherwise follow the path to all of the subsequent nodes
+    for (int i = 0; i < node->count_next; ++i) {
+        count += __gnwa_graph_get_path_count(node->next[i]);
+    }
+    return count;
+}
+
+
+// Function to get the count of possible paths
+uint32_t gnwa_graph_get_path_count(gnwa_graph_t* graph) {
+    // Start at the max node of the graph and take every path recursively
+    return __gnwa_graph_get_path_count(graph->max_node);
+}
+
+
+void gnwa_path_build(gnwa_graph_paths_t* paths, gnwa_node_t** nodes, int32_t len) {
+    // Check if the end of a path is reached
+    if (nodes[len-1]->count_next == 0) {
+        gnwa_path_t* path = gnwa_path_create(nodes, len);
+        paths->paths[paths->counter] = path;
+        paths->counter++;
+        return;
+    }
+
+    // Iterate over all possible continuing paths
+    for (int i = 0; i < nodes[len-1]->count_next; ++i) {
+        nodes[len] = nodes[len-1]->next[i];
+        gnwa_path_build(paths, nodes, len + 1);
+    }
+}
+
+
+// Function to get all paths for a graph
+gnwa_graph_paths_t* gnwa_graph_get_paths(gnwa_graph_t* graph) {
+    // Allocate memory
+    gnwa_graph_paths_t* paths = (gnwa_graph_paths_t*)malloc(sizeof(gnwa_graph_paths_t));
+    paths->n_paths = gnwa_graph_get_path_count(graph);
+    paths->paths = (gnwa_path_t**)malloc(paths->n_paths * sizeof(gnwa_path_t*));
+    paths->counter = 0;
+
+    // Fill the paths into the array
+    gnwa_node_t** nodes = (gnwa_node_t**)malloc(graph->size * sizeof(gnwa_node_t*));
+    nodes[0] = graph->max_node;
+    gnwa_path_build(paths, nodes, 1);
+    free(nodes);
+
+    return paths;
+}
+
+
+// Function to destroy the gnwa_graph_paths_t struct (this does not delete the individual paths)
+void gnwa_grpah_paths_destroy(gnwa_graph_paths_t* paths) {
+    free(paths->paths);
+    free(paths);
+}
+
+
+// Function to print a graph in GFA format
+void gnwa_graph_print(FILE* file, gnwa_graph_t* graph) {
+    // Print the header
+    fprintf(file, "H\tVN:Z:1.0\n");
+
+    // Print each node (segment lines)
+    for (uint32_t i = 0; i < graph->size; i++) {
+        gnwa_node_t* node = graph->nodes[i];
+        fprintf(file, "S\t%lu\t%s\n", node->id, node->seq); // Node ID and sequence
+    }
+
+    // Print each edge (edge lines)
+    for (uint32_t i = 0; i < graph->size; i++) {
+        gnwa_node_t* node = graph->nodes[i];
+
+        // Print edges for each next node
+        for (int32_t j = 0; j < node->count_next; j++) {
+            gnwa_node_t* target_node = node->next[j];
+            fprintf(file, "E\t%lu\t%lu\n", node->id, target_node->id); // From node ID to target node ID
+        }
+    }
+}
+
+
+// Function to allocate memory for an alignment
+gnwa_alignment_t* gnwa_alignment_create(const char* read,
+                                        gnwa_graph_t* graph,
+                                        int32_t score,
+                                        gnwa_path_t* path) {
+    // Allocate memory
+    gnwa_alignment_t* alignment = (gnwa_alignment_t*)malloc(sizeof(gnwa_alignment_t));
+    alignment->read = (char*)malloc(strlen(read) + 1);
+
+    // Fill the fields
+    strcpy(alignment->read, read);
+    alignment->graph = graph;
+    alignment->score = score;
+    alignment->path = path;
+
+    return alignment;
+}
+
+
+// Functino to destroy an alignment
+void gnwa_alignment_destroy(gnwa_alignment_t* alignment) {
+    free(alignment->read);
+    gnwa_path_destroy(alignment->path);
+    free(alignment);
+}
+
+
+// Functino to align a read to a path
+gnwa_alignment_t* gnwa_path_align(const char* read,
+                                    gnwa_graph_t* graph,
+                                    gnwa_path_t* path,
+                                    int8_t* nt_table,
+                                    int8_t* score_matrix,
+                                    uint8_t gap_open,
+                                    uint8_t gap_extend) {
+    gnwa_alignment_t* alignment = gnwa_alignment_create(read,
+                                                        graph,
+                                                        0,
+                                                        path);
+    // ToDo:
+    // Get the sequence from the paths
+    // perfrom the needleman-wunsh algorithm on the sequence read pairs
+    return alignment;
+}
+
+
+//  Function to align a read to a graph 
+gnwa_alignment_t* gnwa_graph_align(const char* read,
+                                    gnwa_graph_t* graph,
+                                    int8_t* nt_table,
+                                    int8_t* score_matrix,
+                                    uint8_t gap_open,
+                                    uint8_t gap_extend) {
+
+    // Generate all possible alignment pairs (read + sequence)
+    gnwa_graph_paths_t* paths = gnwa_graph_get_paths(graph);
+
+    // Iterate over all paths
+    gnwa_alignment_t* alignment = gnwa_path_align(read,
+                                                    graph,
+                                                    paths->paths[0],
+                                                    nt_table,
+                                                    score_matrix,
+                                                    gap_open,
+                                                    gap_extend);
+    for (int i = 1; i < paths->n_paths; ++i) {
+        gnwa_alignment_t* new_alignment = gnwa_path_align(read,
+                                                            graph,
+                                                            paths->paths[i],
+                                                            nt_table,
+                                                            score_matrix,
+                                                            gap_open,
+                                                            gap_extend);
+        // Chosse the alignment with the better score
+        if (alignment->score < new_alignment->score) {
+            gnwa_alignment_destroy(alignment);
+            alignment = new_alignment;
+        } else {
+            gnwa_alignment_destroy(new_alignment);
+        }
+    }
+
+    gnwa_grpah_paths_destroy(paths);
+    return alignment;
+}
