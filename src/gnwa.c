@@ -417,6 +417,7 @@ gnwa_alignment_t* gnwa_align(const int8_t* num_read,
                              int8_t* score_matrix,
                              int8_t gap_open,
                              int8_t gap_extend) {
+                                
     // Initialize matrices for scoring and traceback
     int32_t** score_matrix_dp = (int32_t**)malloc((read_len + 1) * sizeof(int32_t*));
     int32_t** trace_matrix = (int32_t**)malloc((read_len + 1) * sizeof(int32_t*));

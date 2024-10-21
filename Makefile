@@ -17,9 +17,11 @@ OBJS = $(OBJ_DIR)/gnwa.o $(OBJ_DIR)/main.o
 # Executable
 EXE = $(BIN_DIR)/$(TARGET)
 
-.PHONY:all clean tests
+.PHONY:all clean tests lib
 
-all:$(EXE)
+all:$(LIB_DIR)/libgnwa.a $(EXE)
+
+lib:$(LIB_DIR)/libgnwa.a
 
 $(EXE): $(OBJS)
 	@mkdir -p $(@D)
@@ -29,9 +31,15 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(@D)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
+# Static library creation
+$(LIB_DIR)/libgnwa.a: $(OBJ_DIR)/gnwa.o
+	@mkdir -p $(@D)
+	ar rcs $@ $^
+
 tests: all
 	$(shell $(EXE))
 
 clean:
 	rm -rf $(BIN_DIR)
 	rm -rf $(OBJ_DIR)
+	rm -rf $(LIB_DIR)
