@@ -6,8 +6,6 @@
 
 #include "gnwa.h"
 
-
-
 // Function to read the GFA file and build the graph
 gnwa_graph_t* read_gfa_file(const char* filename, int8_t* nt_table, int8_t* score_matrix) {
     FILE* file = fopen(filename, "r");
@@ -97,9 +95,9 @@ int main() {
 		4, 4, 4, 4,  3, 3, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4 
 	};
     int8_t score_matrix[16] = {
-            1,-1,-1,-1
-            -1,1,-1,-1
-            -1,-1,1,-1
+            1,-1,-1,-1,
+            -1,1,-1,-1,
+            -1,-1,1,-1,
             -1,-1,-1,1
     };
 
@@ -108,13 +106,14 @@ int main() {
 
     gnwa_graph_print(stderr, graph);
 
-    gnwa_alignment_t* alignment = gnwa_graph_align("ACTTGAGAAGAGT",
+    gnwa_alignment_t* alignment = gnwa_graph_align("ACTGAGGTCAGGT",
                                                     graph,
                                                     nt_table,
                                                     score_matrix,
-                                                    1,1);
+                                                    1, 1);
 
     fprintf(stderr, "%i\n", alignment->score);
+    gnwa_cigar_print(stderr, &(alignment->cigar));
     gnwa_alignment_destroy(alignment);
 
     gnwa_graph_destroy(graph);

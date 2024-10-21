@@ -76,9 +76,15 @@ extern "C" {
 #endif // __cplusplus
 
 
+int32_t gnwa_max(int32_t a, int32_t b, int32_t c);
+
 int8_t* gnwa_create_num(const char* seq,
                         const int32_t len,
                         const int8_t* nt_table);
+void gnwa_num_print(FILE* file, int8_t* num, int32_t len);
+
+void gnwa_cigar_print(FILE* file, gnwa_cigar_t* cigar);
+void gnwa_cigar_destroy(gnwa_cigar_t* cigar);
 
 gnwa_node_t* gnwa_node_create(const uint64_t id,
                                 const char* seq,
@@ -94,6 +100,8 @@ void gnwa_node_del_edge(gnwa_node_t* start, gnwa_node_t* end);
 
 gnwa_path_t* gnwa_path_create(gnwa_node_t** nodes, uint32_t len);
 void gnwa_path_destroy(gnwa_path_t* path);
+char* gnwa_path_get_sequence(gnwa_path_t* path);
+int32_t gnwa_path_get_num_sequence(gnwa_path_t* path, int8_t** num);
 void gnwa_path_print(FILE* file, gnwa_path_t* path);
 
 gnwa_graph_t* gnwa_graph_create(uint32_t size);
@@ -111,6 +119,18 @@ gnwa_alignment_t* gnwa_alignment_create(const char* read,
                                         int32_t score,
                                         gnwa_path_t* path);
 void gnwa_alignment_destroy(gnwa_alignment_t* alignment);
+
+
+
+gnwa_alignment_t* gnwa_align(const int8_t* num_read,
+                                const int32_t read_len,
+                                const int8_t* num_seq,
+                                const int32_t seq_len,
+                                gnwa_alignment_t* alignment,
+                                int8_t* nt_table,
+                                int8_t* score_matrix,
+                                int8_t gap_open,
+                                int8_t gap_extend);
 
 gnwa_alignment_t* gnwa_path_align(const char* read,
                                     gnwa_graph_t* graph,

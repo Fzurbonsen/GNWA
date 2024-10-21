@@ -9,6 +9,14 @@
 #include "gnwa.h"
 
 
+// Function to find the max of three values
+int32_t gnwa_max(int32_t a, int32_t b, int32_t c) {
+    if (a >= b && a >= c) return a;
+    if (b >= a && b >= c) return b;
+    return c;
+}
+
+
 // Function to transform char seqeunce into num sequence
 int8_t* gnwa_create_num(const char* seq,
                         const int32_t len,
@@ -17,6 +25,32 @@ int8_t* gnwa_create_num(const char* seq,
     int8_t* num = (int8_t*)malloc(len);
     for (int i = 0; i < len; ++i) num[i] = nt_table[(int)seq[i]];
     return num;
+}
+
+
+// Function to print a num sequence
+void gnwa_num_print(FILE* file, int8_t* num, int32_t len) {
+    for (int i = 0; i < len; ++i) {
+        fprintf(file, "%i", num[i]);
+    }
+    fprintf(file, "\n");
+}
+
+
+// Function to print a CIGAR
+void gnwa_cigar_print(FILE* file, gnwa_cigar_t* cigar) {
+    for (int i = 0; i < cigar->length; ++i) {
+        fprintf(file, "%i%c", cigar->elements[i].length, cigar->elements[i].type);
+    }
+    fprintf(file, "\n");
+}
+
+
+// Function to destroy a CIGAR
+void gnwa_cigar_destroy(gnwa_cigar_t* cigar) {
+    free(cigar->elements);
+    cigar->elements = NULL;
+    cigar->length = 0;
 }
 
 
@@ -139,6 +173,57 @@ void gnwa_path_destroy(gnwa_path_t* path) {
     free(path->nodes);
     free(path);
 }
+
+
+// Function to get the complete sequence of a path
+char* gnwa_path_get_sequence(gnwa_path_t* path) {
+    int32_t len = 0;
+    // Get the length of the sequence
+    for (int i = 0; i < path->len; ++i) {
+        len += path->nodes[i]->len;
+    }
+
+    // Allocate memory for the sequence
+    char* seq = (char*)malloc(len * sizeof(char) + 1);
+
+    // Iterate over all nodes to build sequence
+    int32_t pos = 0;
+    for (int i = 0; i < path->len; ++i) {
+        strcpy(seq + pos, path->nodes[i]->seq);
+        pos += path->nodes[i]->len; 
+    }
+
+    seq[len] = '\0';
+    return seq;
+}
+
+
+// Function to get the complete num sequence of a path
+int32_t gnwa_path_get_num_sequence(gnwa_path_t* path, int8_t** num) {
+    int32_t len = 0;
+    
+    // Get the total length of the sequence from all nodes
+    for (int i = 0; i < path->len; ++i) {
+        len += path->nodes[i]->len;
+    }
+
+    // Reallocate memory only if num is NULL, otherwise reuse existing memory
+    if (*num != NULL) {
+        free(*num);
+    }
+    *num = (int8_t*)malloc(len * sizeof(int8_t));
+
+    // Iterate over all nodes and copy their numerical sequences into num
+    int32_t pos = 0;
+    for (int i = 0; i < path->len; ++i) {
+        for (int j = 0; j < path->nodes[i]->len; ++j, ++pos) {
+            (*num)[pos] = path->nodes[i]->num[j];
+        }
+    }
+
+    return len;
+}
+
 
 
 // Function to print a path
@@ -317,25 +402,154 @@ gnwa_alignment_t* gnwa_alignment_create(const char* read,
 void gnwa_alignment_destroy(gnwa_alignment_t* alignment) {
     free(alignment->read);
     gnwa_path_destroy(alignment->path);
+    gnwa_cigar_destroy(&(alignment->cigar));
     free(alignment);
 }
 
 
-// Functino to align a read to a path
+// Function to perform Needleman-Wunsch algorithm
+gnwa_alignment_t* gnwa_align(const int8_t* num_read,
+                             const int32_t read_len,
+                             const int8_t* num_seq,
+                             const int32_t seq_len,
+                             gnwa_alignment_t* alignment,
+                             int8_t* nt_table,
+                             int8_t* score_matrix,
+                             int8_t gap_open,
+                             int8_t gap_extend) {
+    // Initialize matrices for scoring and traceback
+    int32_t** score_matrix_dp = (int32_t**)malloc((read_len + 1) * sizeof(int32_t*));
+    int32_t** trace_matrix = (int32_t**)malloc((read_len + 1) * sizeof(int32_t*));
+    for (int i = 0; i <= read_len; ++i) {
+        score_matrix_dp[i] = (int32_t*)malloc((seq_len + 1) * sizeof(int32_t));
+        // trace_matrix[i] = (int32_t*)malloc((seq_len + 1) * sizeof(int32_t));
+        trace_matrix[i] = calloc(1, (seq_len + 1) * sizeof(int32_t));
+    }
+
+    // Initialize scoring matrix with gap penalties
+    score_matrix_dp[0][0] = 0;
+    for (int i = 1; i <= read_len; ++i) {
+        score_matrix_dp[i][0] = gap_open + (i - 1) * gap_extend;
+        trace_matrix[i][0] = 1; // 1 indicates gap in sequence
+    }
+    for (int j = 1; j <= seq_len; ++j) {
+        score_matrix_dp[0][j] = gap_open + (j - 1) * gap_extend;
+        trace_matrix[0][j] = 2; // 2 indicates gap in read
+    }
+
+    // Fill the scoring matrix
+    for (int i = 1; i <= read_len; ++i) {
+        for (int j = 1; j <= seq_len; ++j) {
+            int8_t read_base = num_read[i - 1];
+            int8_t seq_base = num_seq[j - 1];
+            int match_score = score_matrix[read_base * 4 + seq_base]; // Using score matrix
+
+            // Calculate scores for match/mismatch, insertion, and deletion
+            int match = score_matrix_dp[i - 1][j - 1] + match_score;
+            int delete = score_matrix_dp[i - 1][j] + (trace_matrix[i - 1][j] == 1 ? gap_extend : gap_open);
+            int insert = score_matrix_dp[i][j - 1] + (trace_matrix[i][j - 1] == 2 ? gap_extend : gap_open);
+
+            // Choose the maximum score and update the traceback matrix
+            score_matrix_dp[i][j] = match;
+            trace_matrix[i][j] = 0; // 0 means match/mismatch by default
+            if (delete > score_matrix_dp[i][j]) {
+                score_matrix_dp[i][j] = delete;
+                trace_matrix[i][j] = 1; // 1 means gap in sequence (deletion)
+            }
+            if (insert > score_matrix_dp[i][j]) {
+                score_matrix_dp[i][j] = insert;
+                trace_matrix[i][j] = 2; // 2 means gap in read (insertion)
+            }
+        }
+    }
+
+    // Traceback to build the CIGAR string
+    int32_t i = read_len;
+    int32_t j = seq_len;
+    gnwa_cigar_t cigar = {0, NULL}; // Initialize an empty CIGAR struct
+
+    while (i > 0 || j > 0) {
+        char op;
+        if (trace_matrix[i][j] == 0) {
+            // Match/Mismatch
+            op = 'M';
+            --i;
+            --j;
+        } else if (trace_matrix[i][j] == 1) {
+            // Deletion in sequence
+            op = 'D';
+            --i;
+        } else {
+            // Insertion in read
+            op = 'I';
+            --j;
+        }
+
+        // Check if the last CIGAR element has the same type as the current one
+        if (cigar.length > 0 && cigar.elements[cigar.length - 1].type == op) {
+            // Increment the length of the last element
+            cigar.elements[cigar.length - 1].length++;
+        } else {
+            // Add a new CIGAR element
+            cigar.elements = realloc(cigar.elements, (cigar.length + 1) * sizeof(gnwa_cigar_element_t));
+            gnwa_cigar_element_t new_element = {op, 1};
+            cigar.elements[cigar.length++] = new_element;
+        }
+    }
+
+    // Reverse the CIGAR elements because traceback builds the alignment from the end to the start
+    for (int k = 0; k < cigar.length / 2; ++k) {
+        gnwa_cigar_element_t temp = cigar.elements[k];
+        cigar.elements[k] = cigar.elements[cigar.length - 1 - k];
+        cigar.elements[cigar.length - 1 - k] = temp;
+    }
+
+    // Free resources and update alignment score and CIGAR
+    alignment->score = score_matrix_dp[read_len][seq_len];
+    alignment->cigar = cigar;
+
+    // Free memory used by matrices
+    for (int i = 0; i <= read_len; ++i) {
+        free(score_matrix_dp[i]);
+        free(trace_matrix[i]);
+    }
+    free(score_matrix_dp);
+    free(trace_matrix);
+
+    return alignment;
+}
+
+
+// Function to align a read to a path
 gnwa_alignment_t* gnwa_path_align(const char* read,
-                                    gnwa_graph_t* graph,
-                                    gnwa_path_t* path,
-                                    int8_t* nt_table,
-                                    int8_t* score_matrix,
-                                    uint8_t gap_open,
-                                    uint8_t gap_extend) {
-    gnwa_alignment_t* alignment = gnwa_alignment_create(read,
-                                                        graph,
-                                                        0,
-                                                        path);
-    // ToDo:
-    // Get the sequence from the paths
-    // perfrom the needleman-wunsh algorithm on the sequence read pairs
+                                  gnwa_graph_t* graph,
+                                  gnwa_path_t* path,
+                                  int8_t* nt_table,
+                                  int8_t* score_matrix,
+                                  uint8_t gap_open,
+                                  uint8_t gap_extend) {
+
+    gnwa_alignment_t* alignment = gnwa_alignment_create(read, graph, 0, path);
+    int8_t* num_seq = NULL; // Initialize num to NULL
+    int32_t seq_len = gnwa_path_get_num_sequence(path, &num_seq); // Pass the address of num
+    int32_t read_len = strlen(read); // Get the length of the read
+    int8_t* num_read = gnwa_create_num(read, read_len, nt_table); // Create numerical representation of the read
+
+
+    // Perform the Needleman-Wunsch algorithm on the sequence-read pairs (to be implemented)
+    alignment = gnwa_align(num_read,
+                            read_len,
+                            num_seq,
+                            seq_len,
+                            alignment,
+                            nt_table,
+                            score_matrix,
+                            -gap_open,
+                            -gap_extend);
+
+    // Free allocated memory
+    free(num_seq);
+    free(num_read);
     return alignment;
 }
 
