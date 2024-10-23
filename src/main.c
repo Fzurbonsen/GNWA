@@ -94,16 +94,17 @@ int main() {
 		4, 0, 4, 1,  4, 4, 4, 2,  4, 4, 4, 4,  4, 4, 4, 4, 
 		4, 4, 4, 4,  3, 3, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4 
 	};
-    int8_t score_matrix[16] = {
-            1,-1,-1,-1,
-            -1,1,-1,-1,
-            -1,-1,1,-1,
-            -1,-1,-1,1
-            // 1,1,1,1,
-            // 1,1,1,1,
-            // 1,1,1,1,
-            // 1,1,1,1
-    };
+    // int8_t score_matrix[16] = {
+    //         1,-1,-1,-1,
+    //         -1,1,-1,-1,
+    //         -1,-1,1,-1,
+    //         -1,-1,-1,1
+    //         // 1,1,1,1,
+    //         // 1,1,1,1,
+    //         // 1,1,1,1,
+    //         // 1,1,1,1
+    // };
+    int8_t* score_matrix = gnwa_create_score_matrix(1,1);
 
     // gnwa_graph_t* graph = build_graph(nt_table, score_matrix);
     gnwa_graph_t* graph = read_gfa_file("tests/test_cases.gfa", nt_table, score_matrix);
@@ -119,6 +120,7 @@ int main() {
     fprintf(stderr, "%i\n", alignment->score);
     gnwa_cigar_print(stderr, &(alignment->cigar));
     gnwa_alignment_destroy(alignment);
+    free(score_matrix);
 
     gnwa_graph_destroy(graph);
     fprintf(stderr, "run sucessfull!\n");

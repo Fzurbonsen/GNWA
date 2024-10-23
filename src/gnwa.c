@@ -37,6 +37,18 @@ void gnwa_num_print(FILE* file, int8_t* num, int32_t len) {
 }
 
 
+// Function to create a score matrix
+int8_t* gnwa_create_score_matrix(int32_t match, int32_t mismatch) {
+    int8_t* mat = (int8_t*)calloc(25, sizeof(int8_t));
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            mat[i * 4 + j] = i == j ? match : -mismatch;
+        }
+    }
+    return mat;
+}
+
+
 // Function to print a CIGAR
 void gnwa_cigar_print(FILE* file, gnwa_cigar_t* cigar) {
     for (int i = 0; i < cigar->length; ++i) {
