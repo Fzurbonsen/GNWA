@@ -49,6 +49,24 @@ int8_t* gnwa_create_score_matrix(int32_t match, int32_t mismatch) {
 }
 
 
+// Function to create an nt table
+int8_t* gssw_create_nt_table(void) {
+    int8_t* ret_nt_table = calloc(128, sizeof(int8_t));
+    int8_t nt_table[128] = {
+        4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+        4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+        4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+        4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+        4, 0, 4, 1,  4, 4, 4, 2,  4, 4, 4, 4,  4, 4, 4, 4,
+        4, 4, 4, 4,  3, 0, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4,
+        4, 0, 4, 1,  4, 4, 4, 2,  4, 4, 4, 4,  4, 4, 4, 4,
+        4, 4, 4, 4,  3, 0, 4, 4,  4, 4, 4, 4,  4, 4, 4, 4
+    };
+    memcpy(ret_nt_table, nt_table, 128*sizeof(int8_t));
+    return ret_nt_table;
+}
+
+
 // Function to print a CIGAR
 void gnwa_cigar_print(FILE* file, gnwa_cigar_t* cigar) {
     for (int i = 0; i < cigar->length; ++i) {
