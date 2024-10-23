@@ -99,14 +99,18 @@ int main() {
             -1,1,-1,-1,
             -1,-1,1,-1,
             -1,-1,-1,1
+            // 1,1,1,1,
+            // 1,1,1,1,
+            // 1,1,1,1,
+            // 1,1,1,1
     };
 
     // gnwa_graph_t* graph = build_graph(nt_table, score_matrix);
     gnwa_graph_t* graph = read_gfa_file("tests/test_cases.gfa", nt_table, score_matrix);
 
-    gnwa_graph_print(stderr, graph);
+    // gnwa_graph_print(stderr, graph);
 
-    gnwa_alignment_t* alignment = gnwa_graph_align("ACTGAGGTCAGGT",
+    gnwa_alignment_t* alignment = gnwa_graph_align("AGGTCCCG",
                                                     graph,
                                                     nt_table,
                                                     score_matrix,
