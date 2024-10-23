@@ -84,7 +84,7 @@ int8_t* gnwa_create_num(const char* seq,
 void gnwa_num_print(FILE* file, int8_t* num, int32_t len);
 
 int8_t* gnwa_create_score_matrix(int32_t match, int32_t mismatch);
-int8_t* gssw_create_nt_table(void);
+int8_t* gnwa_create_nt_table(void);
 
 void gnwa_cigar_print(FILE* file, gnwa_cigar_t* cigar);
 void gnwa_cigar_destroy(gnwa_cigar_t* cigar);
