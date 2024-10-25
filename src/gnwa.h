@@ -2,6 +2,7 @@
 
     gnwa.h
     This file contains the definitions for the Graph-Needleman-Wunsch-Algorithm structs and functions.
+    The design of this library is heavily inspired by gssw.
     Author: Frederic zur Bonsen <fzurbonsen@student.ethz.ch>
 
 */
