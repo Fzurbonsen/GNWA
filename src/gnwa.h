@@ -144,6 +144,16 @@ gnwa_alignment_t* gnwa_path_align(const char* read,
                                     uint8_t gap_open,
                                     uint8_t gap_extend);
 
+gnwa_alignment_t* gnwa_path_build_and_align(const char* read,
+                                            gnwa_node_t** nodes,
+                                            gnwa_alignment_t* alignment,
+                                            gnwa_graph_t* graph,
+                                            int32_t len,
+                                            int8_t* nt_table,
+                                            int8_t* score_matrix,
+                                            uint8_t gap_open,
+                                            uint8_t gap_extend);
+
 gnwa_alignment_t* gnwa_graph_align(const char* read,
                                     gnwa_graph_t* graph,
                                     int8_t* nt_table,

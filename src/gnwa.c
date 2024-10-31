@@ -585,7 +585,61 @@ gnwa_alignment_t* gnwa_path_align(const char* read,
 }
 
 
-//  Function to align a read to a graph 
+
+// Function to create a path and align the path
+gnwa_alignment_t* gnwa_path_build_and_align(const char* read,
+                                            gnwa_node_t** nodes,
+                                            gnwa_alignment_t* alignment,
+                                            gnwa_graph_t* graph,
+                                            int32_t len,
+                                            int8_t* nt_table,
+                                            int8_t* score_matrix,
+                                            uint8_t gap_open,
+                                            uint8_t gap_extend) {
+    // Check if the end of a path is reached
+    if (nodes[len-1]->count_next == 0) {
+        gnwa_path_t* path = gnwa_path_create(nodes, len);
+        gnwa_alignment_t* new_alignment = gnwa_path_align(read,
+                                                            graph,
+                                                            path,
+                                                            nt_table,
+                                                            score_matrix,
+                                                            gap_open,
+                                                            gap_extend);
+        // Check if there is an already existing alignment
+        if (alignment == NULL) {
+            alignment = new_alignment;
+            return alignment;
+        }
+        // Check if the new alignment is better then the old alignment
+        if (new_alignment->score > alignment->score) {
+            gnwa_alignment_destroy(alignment);
+            alignment = new_alignment;
+        } else {
+            gnwa_alignment_destroy(new_alignment);
+        }
+        return alignment;
+    }
+
+    // Iterate over all possible continuing paths
+    for (int i = 0; i < nodes[len-1]->count_next; ++i) {
+        nodes[len] = nodes[len-1]->next[i];
+        alignment = gnwa_path_build_and_align(read,
+                                                nodes,
+                                                alignment,
+                                                graph,
+                                                len + 1,
+                                                nt_table,
+                                                score_matrix,
+                                                gap_open,
+                                                gap_extend);
+    }
+
+    return alignment;
+}
+
+
+// Function to align a read to a graph 
 gnwa_alignment_t* gnwa_graph_align(const char* read,
                                     gnwa_graph_t* graph,
                                     int8_t* nt_table,
@@ -593,34 +647,49 @@ gnwa_alignment_t* gnwa_graph_align(const char* read,
                                     uint8_t gap_open,
                                     uint8_t gap_extend) {
 
-    // Generate all possible alignment pairs (read + sequence)
-    gnwa_graph_paths_t* paths = gnwa_graph_get_paths(graph);
+    // Generate and align all possible paths
+    gnwa_alignment_t* alignment = NULL;
+    gnwa_node_t** nodes = (gnwa_node_t**)malloc(graph->size * sizeof(gnwa_node_t*));
+    nodes[0] = graph->max_node;
+    alignment = gnwa_path_build_and_align(read,
+                                            nodes,
+                                            alignment,
+                                            graph,
+                                            1,
+                                            nt_table,
+                                            score_matrix,
+                                            gap_open,
+                                            gap_extend);
+    free(nodes);
 
-    // Iterate over all paths
-    gnwa_alignment_t* alignment = gnwa_path_align(read,
-                                                    graph,
-                                                    paths->paths[0],
-                                                    nt_table,
-                                                    score_matrix,
-                                                    gap_open,
-                                                    gap_extend);
-    for (int i = 1; i < paths->n_paths; ++i) {
-        gnwa_alignment_t* new_alignment = gnwa_path_align(read,
-                                                            graph,
-                                                            paths->paths[i],
-                                                            nt_table,
-                                                            score_matrix,
-                                                            gap_open,
-                                                            gap_extend);
-        // Chosse the alignment with the better score
-        if (alignment->score < new_alignment->score) {
-            gnwa_alignment_destroy(alignment);
-            alignment = new_alignment;
-        } else {
-            gnwa_alignment_destroy(new_alignment);
-        }
-    }
+    // // Generate all possible alignment pairs (read + sequence)
+    // gnwa_graph_paths_t* paths = gnwa_graph_get_paths(graph);
 
-    gnwa_grpah_paths_destroy(paths);
+    // // Iterate over all paths
+    // gnwa_alignment_t* alignment = gnwa_path_align(read,
+    //                                                 graph,
+    //                                                 paths->paths[0],
+    //                                                 nt_table,
+    //                                                 score_matrix,
+    //                                                 gap_open,
+    //                                                 gap_extend);
+    // for (int i = 1; i < paths->n_paths; ++i) {
+    //     gnwa_alignment_t* new_alignment = gnwa_path_align(read,
+    //                                                         graph,
+    //                                                         paths->paths[i],
+    //                                                         nt_table,
+    //                                                         score_matrix,
+    //                                                         gap_open,
+    //                                                         gap_extend);
+    //     // Chosse the alignment with the better score
+    //     if (alignment->score < new_alignment->score) {
+    //         gnwa_alignment_destroy(alignment);
+    //         alignment = new_alignment;
+    //     } else {
+    //         gnwa_alignment_destroy(new_alignment);
+    //     }
+    // }
+
+    // gnwa_grpah_paths_destroy(paths);
     return alignment;
 }
